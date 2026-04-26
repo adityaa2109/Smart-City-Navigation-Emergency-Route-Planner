@@ -118,9 +118,11 @@ GET /api/stats
 
 
 ##  Team member names:
+
+Aditya Shinde
+
 Suhani Mahapatra
 
 Shharayu Paatil
 
-Aditya Shinde
 
