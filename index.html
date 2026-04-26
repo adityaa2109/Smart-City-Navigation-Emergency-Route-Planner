@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityRoute — Smart Emergency Planner</title>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0a0f1e;
+      color: #e0e6f0;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      height: 100vh;
+    }
+    .sidebar {
+      background: #0d1526;
+      border-right: 1px solid #1e2d4a;
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .canvas-area {
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #00d4ff;
+      letter-spacing: 1px;
+    }
+    label {
+      font-size: 12px;
+      color: #8899bb;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .panel {
+      background: #111c32;
+      border: 1px solid #1e3050;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .panel-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #4a9eff;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    select,
+    button {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 7px;
+      border: 1px solid #1e3050;
+      font-size: 12px;
+      outline: none;
+      transition: .2s;
+    }
+    select {
+      background: #0d1526;
+      color: #e0e6f0;
+    }
+    button {
+      background: #1a3060;
+      color: #e0e6f0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover {
+      background: #1e4080;
+      border-color: #4a9eff;
+    }
+    .btn-em {
+      background: #1a0010;
+      border-color: #cc0044;
+      color: #ff4488;
+    }
+    .btn-em:hover {
+      background: #2a0020;
+    }
+    .btn-reset {
+      background: #0a1820;
+      border-color: #1e3050;
+      color: #8899bb;
+    }
+    .btn-reset:hover {
+      color: #e0e6f0;
+    }
+    .btn-run {
+      background: #003322;
+      border-color: #00aa55;
+      color: #00ff88;
+    }
+    .btn-run:hover {
+      background: #004433;
+    }
+    .btn-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .route-info {
+      font-size: 12px;
+      color: #8899bb;
+      line-height: 1.8;
+    }
+    .val {
+      color: #00d4ff;
+      font-weight: 700;
+    }
+    .val.em {
+      color: #ff4488;
+    }
+    .algo-vis {
+      background: #060c18;
+      border: 1px solid #1e3050;
+      border-radius: 8px;
+      padding: 8px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #3a5a8a;
+      max-height: 110px;
+      overflow-y: auto;
+    }
+    .algo-vis .hi  { color: #00d4ff; }
+    .algo-vis .ok  { color: #00ff88; }
+    .algo-vis .em  { color: #ff4488; }
+    .algo-vis .pr  { color: #ff8800; }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-box {
+      background: #060c18;
+      border: 1px solid #1e3050;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .stat-box .n {
+      font-size: 18px;
+      font-weight: 700;
+      color: #00d4ff;
+    }
+    .stat-box .l {
+      font-size: 9px;
+      color: #4a6a9a;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #5577aa;
+      margin-bottom: 4px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .badge-n  { background: #001a33; color: #4a9eff; border: 1px solid #1e3050; }
+    .badge-em { background: #1a0010; color: #ff4488; border: 1px solid #cc0044; }
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #5577aa;
+    }
+    .speed-row input {
+      flex: 1;
+      accent-color: #4a9eff;
+    }
+    .ws-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #00ff88;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .3; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <h1>🏙 CityRoute</h1>
+        <span class="ws-dot" id="wsDot" title="WebSocket connected"></span>
+      </div>
+      <div style="font-size:10px;color:#3a5a8a;margin-top:3px">Connected to Node.js backend</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Route Config</div>
+      <label>Start Node</label>
+      <select id="startSel"></select>
+      <label style="margin-top:8px">End Node</label>
+      <select id="endSel"></select>
+      <div class="btn-2col">
+        <button class="btn-run" onclick="findRoute(false)">▶ Find Route</button>
+        <button class="btn-em"  onclick="findRoute(true)">🚑 Emergency</button>
+      </div>
+      <button class="btn-reset" style="margin-top:8px" onclick="clearBlocks()">↺ Clear All Blocks</button>
+    </div>
+    <div class="panel">
+      <div class="hdr">
+        <div class="panel-title" style="margin:0">Algorithm Visualizer</div>
+        <span id="modeBadge" class="badge badge-n">DIJKSTRA</span>
+      </div>
+      <div class="speed-row">
+        <span>Speed</span>
+        <input type="range" id="speedSlider" min="1" max="10" value="5">
+        <span id="speedVal">5</span>
+      </div>
+      <div class="algo-vis" id="algoVis" style="margin-top:8px">
+        <div>Waiting for route request…</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Route Result</div>
+      <div class="route-info" id="routeInfo">No route computed yet.</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="n" id="sNodes">14</div><div class="l">Nodes</div></div>
+        <div class="stat-box"><div class="n" id="sEdges">22</div><div class="l">Edges</div></div>
+        <div class="stat-box"><div class="n" id="sBlocked">0</div><div class="l">Blocked</div></div>
+        <div class="stat-box"><div class="n" id="sDist">—</div><div class="l">Distance</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Legend</div>
+      <div class="legend-row"><div class="dot" style="background:#4a9eff"></div>Regular node</div>
+      <div class="legend-row"><div class="dot" style="background:#00ff88"></div>Start</div>
+      <div class="legend-row"><div class="dot" style="background:#ff4488"></div>End</div>
+      <div class="legend-row"><div class="dot" style="background:#ff8800"></div>Emergency path</div>
+      <div class="legend-row"><div class="dot" style="background:#cc0044;border-radius:2px;width:20px;height:7px"></div>Blocked road</div>
+      <div style="font-size:10px;color:#3a5a8a;margin-top:4px">Click any road to block/unblock it</div>
+    </div>
+
+  </div>
+  <div class="canvas-area">
+    <canvas id="c"></canvas>
+  </div>
+
+</div><!-- /app -->
+
+
+<script>
+
+  const NODES = [
+    { id: 0,  name: 'City Hall',  x: .12, y: .20, type: 'gov'      },
+    { id: 1,  name: 'Hospital A', x: .28, y: .10, type: 'hospital'  },
+    { id: 2,  name: 'Market St',  x: .45, y: .15, type: 'road'      },
+    { id: 3,  name: 'Airport',    x: .72, y: .08, type: 'airport'   },
+    { id: 4,  name: 'University', x: .82, y: .22, type: 'uni'       },
+    { id: 5,  name: 'Downtown',   x: .50, y: .35, type: 'road'      },
+    { id: 6,  name: 'Park North', x: .25, y: .38, type: 'park'      },
+    { id: 7,  name: 'Station',    x: .65, y: .40, type: 'station'   },
+    { id: 8,  name: 'Hospital B', x: .88, y: .48, type: 'hospital'  },
+    { id: 9,  name: 'Westside',   x: .15, y: .58, type: 'road'      },
+    { id: 10, name: 'Central Sq', x: .40, y: .60, type: 'road'      },
+    { id: 11, name: 'Eastgate',   x: .72, y: .62, type: 'road'      },
+    { id: 12, name: 'South Mall', x: .30, y: .80, type: 'road'      },
+    { id: 13, name: 'Suburbs',    x: .65, y: .85, type: 'road'      },
+  ];
+
+  const EDGES = [
+    [0,  1,  4], [0,  6,  5],
+    [1,  2,  3], [1,  6,  4],
+    [2,  3,  6], [2,  5,  4],
+    [3,  4,  3],
+    [4,  7,  5], [4,  8,  7],
+    [5,  6,  3], [5,  7,  4], [5,  10, 5],
+    [6,  9,  6],
+    [7,  8,  5], [7,  11, 4],
+    [8,  11, 6],
+    [9,  10, 4], [9,  12, 7],
+    [10, 11, 6], [10, 12, 5],
+    [11, 13, 5],
+    [12, 13, 6],
+  ];
+
+  const NODE_ICONS = {
+    hospital: '🏥',
+    airport:  '✈',
+    uni:      '🎓',
+    park:     '🌳',
+    station:  '🚉',
+    gov:      '🏛',
+    road:     '●',
+  };
+
+  let blocked    = new Set();   // blocked edge keys
+  let visiting   = new Set();   // nodes being explored (algo step)
+  let visitedSet = new Set();   // fully visited nodes
+  let pathEdges  = [];          // edge keys on the found path
+  let pathNodes  = [];          // node ids on the found path
+  let isEm       = false;       // emergency mode flag
+  let hoverEdge  = null;        // currently hovered edge key
+  let startNode  = 0;
+  let endNode    = 13;
+
+  const canvas = document.getElementById('c');
+  const ctx    = canvas.getContext('2d');
+  let W = 0, H = 0;
+
+  function ekey(a, b) {
+    return `${Math.min(a, b)}-${Math.max(a, b)}`;
+  }
+
+  
+  function nx(i) { return NODES[i].x * W; }
+
+  function ny(i) { return NODES[i].y * H; }
+
+  function hitEdge(mx, my) {
+    for (const [a, b] of EDGES) {
+      const x1 = nx(a), y1 = ny(a), x2 = nx(b), y2 = ny(b);
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) continue;
+      const t = ((mx - x1) * dx + (my - y1) * dy) / (len * len);
+      if (t < 0.1 || t > 0.9) continue;
+      const px = x1 + t * dx, py = y1 + t * dy;
+      if (Math.sqrt((mx - px) ** 2 + (my - py) ** 2) < 12) return ekey(a, b);
+    }
+    return null;
+  }
+
+  const socket = io();
+  const wsDot  = document.getElementById('wsDot');
+
+  socket.on('connect',    () => { wsDot.style.background = '#00ff88'; });
+  socket.on('disconnect', () => { wsDot.style.background = '#ff4488'; });
+
+  socket.on('state', ({ blockedRoads }) => {
+    blocked = new Set(blockedRoads);
+    document.getElementById('sBlocked').textContent = blocked.size;
+    draw();
+  });
+
+  socket.on('algo_step', (step) => {
+    const vis = document.getElementById('algoVis');
+    const div = document.createElement('div');
+    div.className =
+      step.type === 'visit'    ? 'hi' :
+      step.type === 'relax'    ? 'ok' :
+      step.type === 'blocked'  ? 'em' :
+      step.type === 'priority' ? 'pr' : '';
+    div.textContent = step.msg;
+    vis.appendChild(div);
+    vis.scrollTop = vis.scrollHeight;
+
+    if (step.type === 'visit') visitedSet.add(step.node);
+    if (step.type === 'relax') visiting.add(step.to);
+    draw();
+  });
+
+  socket.on('route_result', (result) => {
+    if (result.found) {
+      pathNodes = result.path;
+      pathEdges = [];
+      for (let i = 0; i < result.path.length - 1; i++)
+        pathEdges.push(ekey(result.path[i], result.path[i + 1]));
+
+      document.getElementById('routeInfo').innerHTML =
+        `<b style="color:#00ff88">Route found!</b><br>
+        Path: <span class="val">${result.pathNames.join(' → ')}</span><br>
+        Distance: <span class="val">${result.distance} km</span><br>
+        Mode: <span class="val ${result.emergency ? 'em' : ''}">${result.emergency ? '🚑 Emergency' : 'Normal'}</span><br>
+        Nodes explored: <span class="val">${result.steps.filter(s => s.type === 'visit').length}</span>`;
+      document.getElementById('sDist').textContent = result.distance;
+    } else {
+      document.getElementById('routeInfo').innerHTML = '<span style="color:#ff4488">No path — all routes blocked.</span>';
+      document.getElementById('sDist').textContent = '✗';
+    }
+    draw();
+  });
+
+  /** Real-time block update (synced across all connected clients) */
+  socket.on('block_update', ({ blockedRoads: br, cleared }) => {
+    blocked = new Set(br || []);
+    document.getElementById('sBlocked').textContent = blocked.size;
+    if (cleared) { pathEdges = []; pathNodes = []; }
+    draw();
+  });
+
+  function populateSels() {
+    ['startSel', 'endSel'].forEach(id => {
+      document.getElementById(id).innerHTML =
+        NODES.map(n => `<option value="${n.id}">${n.name}</option>`).join('');
+    });
+    document.getElementById('startSel').value = startNode;
+    document.getElementById('endSel').value   = endNode;
+  }
+
+  function findRoute(emergency) {
+    isEm       = emergency;
+    visiting   = new Set();
+    visitedSet = new Set();
+    pathEdges  = [];
+    pathNodes  = [];
+
+    const badge = document.getElementById('modeBadge');
+    badge.className   = 'badge ' + (emergency ? 'badge-em' : 'badge-n');
+    badge.textContent = emergency ? 'EMERGENCY' : 'DIJKSTRA';
+    document.getElementById('algoVis').innerHTML = '';
+
+    socket.emit('find_route', { src: startNode, dst: endNode, emergency });
+  }
+
+  /** Clear all blocked roads */
+  function clearBlocks() {
+    socket.emit('clear_blocks');
+    visitedSet = new Set();
+    visiting   = new Set();
+    pathEdges  = [];
+    pathNodes  = [];
+    document.getElementById('routeInfo').innerHTML = 'All blocks cleared.';
+    document.getElementById('sDist').textContent   = '—';
+  }
+
+  document.getElementById('startSel').addEventListener('change', e => {
+    startNode = +e.target.value;
+    pathEdges = []; pathNodes = [];
+    draw();
+  });
+
+  document.getElementById('endSel').addEventListener('change', e => {
+    endNode   = +e.target.value;
+    pathEdges = []; pathNodes = [];
+    draw();
+  });
+
+  document.getElementById('speedSlider').addEventListener('input', e => {
+    document.getElementById('speedVal').textContent = e.target.value;
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const r   = canvas.getBoundingClientRect();
+    hoverEdge = hitEdge(e.clientX - r.left, e.clientY - r.top);
+    canvas.style.cursor = hoverEdge ? 'pointer' : 'default';
+    draw();
+  });
+
+  canvas.addEventListener('click', e => {
+    const r  = canvas.getBoundingClientRect();
+    const ek = hitEdge(e.clientX - r.left, e.clientY - r.top);
+    if (!ek) return;
+    const [a, b] = ek.split('-').map(Number);
+    socket.emit('toggle_block', { from: a, to: b });
+  });
+
+  window.addEventListener('resize', resize);
+
+  function drawGrid() {
+    ctx.strokeStyle = '#0d1828';
+    ctx.lineWidth   = 1;
+    for (let x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  function drawEdges() {
+    for (const [a, b, w] of EDGES) {
+      const key  = ekey(a, b);
+      const isB  = blocked.has(key);
+      const isP  = pathEdges.includes(key);
+      const isH  = hoverEdge === key;
+
+      ctx.beginPath();
+      ctx.moveTo(nx(a), ny(a));
+      ctx.lineTo(nx(b), ny(b));
+
+      if (isB) {
+        ctx.strokeStyle = '#cc0044';
+        ctx.lineWidth   = 3;
+        ctx.setLineDash([6, 4]);
+      } else if (isP) {
+        ctx.strokeStyle = isEm ? '#ff8800' : '#00d4ff';
+        ctx.lineWidth   = 4;
+        ctx.setLineDash([]);
+      } else if (isH) {
+        ctx.strokeStyle = '#4a9eff88';
+        ctx.lineWidth   = 3;
+        ctx.setLineDash([]);
+      } else {
+        ctx.strokeStyle = '#1e3050';
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([]);
+      }
+
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Weight label
+      ctx.fillStyle    = isP ? (isEm ? '#ff8800' : '#00d4ff') : '#2a4070';
+      ctx.font         = 'bold 10px Segoe UI';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(w + 'km', (nx(a) + nx(b)) / 2, (ny(a) + ny(b)) / 2 - 8);
+    }
+  }
+
+  function drawNodes() {
+    NODES.forEach(n => {
+      const x   = nx(n.id), y = ny(n.id);
+      const isSt = n.id === startNode;
+      const isEn = n.id === endNode;
+      const inP  = pathNodes.includes(n.id);
+
+      // Glow for start / end / path nodes
+      if (isSt || isEn || inP) {
+        const grd = ctx.createRadialGradient(x, y, 4, x, y, 26);
+        const c   = isEn ? '#ff4488' : (isEm && inP) ? '#ff8800' : '#00d4ff';
+        grd.addColorStop(0, c + '55');
+        grd.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(x, y, 26, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+      }
+
+      // Node circle
+      ctx.beginPath();
+      ctx.arc(x, y, 17, 0, Math.PI * 2);
+      ctx.fillStyle =
+        isSt              ? '#00ff88' :
+        isEn              ? '#ff4488' :
+        inP               ? (isEm ? '#ff8800' : '#00d4ff') :
+        visitedSet.has(n.id) ? '#1a3060' :
+        visiting.has(n.id)   ? '#2a4070' : '#0d1835';
+      ctx.fill();
+
+      ctx.strokeStyle = isSt ? '#00ff88' : isEn ? '#ff4488' : inP ? (isEm ? '#ff8800' : '#00d4ff') : '#1e3050';
+      ctx.lineWidth   = (isSt || isEn || inP) ? 2.5 : 1;
+      ctx.stroke();
+
+      // Icon
+      ctx.font         = '12px serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(NODE_ICONS[n.type] || '●', x, y);
+
+      // Name label
+      ctx.font         = 'bold 10px Segoe UI';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle    = isSt ? '#00ff88' : isEn ? '#ff4488' : inP ? (isEm ? '#ff8800' : '#00d4ff') : '#5577aa';
+      ctx.fillText(n.name, x, y + 20);
+    });
+  }
+
+  function drawAmbulance() {
+    if (!isEm || pathNodes.length < 2) return;
+    const frac = (Date.now() % 2000) / 2000;
+    const seg  = Math.min(Math.floor(frac * (pathNodes.length - 1)), pathNodes.length - 2);
+    const t    = (frac * (pathNodes.length - 1)) - seg;
+    const ax   = nx(pathNodes[seg]),   ay = ny(pathNodes[seg]);
+    const bx   = nx(pathNodes[seg + 1]), by = ny(pathNodes[seg + 1]);
+    ctx.font         = '18px serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🚑', ax + (bx - ax) * t, ay + (by - ay) * t - 8);
+    requestAnimationFrame(draw);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+    drawEdges();
+    drawNodes();
+    drawAmbulance();
+  }
+
+  function resize() {
+    const r = canvas.parentElement.getBoundingClientRect();
+    W = canvas.width  = r.width;
+    H = canvas.height = r.height;
+    draw();
+  }
+
+  populateSels();
+  setTimeout(resize, 100);
+</script>
+</body>
+</html>
